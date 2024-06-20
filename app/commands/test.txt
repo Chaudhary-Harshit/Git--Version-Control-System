@@ -1,0 +1,241 @@
+hello world
+
+
+
+
+
+const fs = require("fs");
+const path = require("path");
+const zlib = require("zlib");
+const crypto = require("crypto");
+const { fileURLToPath } = require("url");
+const https = require('https');
+
+async function clone_repo(repo_url, target_dir){
+    fs.mkdirSync(path.join(__dirname,target_dir));
+    fs.mkdirSync(path.join(__dirname,target_dir, ".git"), { recursive: true });
+    fs.mkdirSync(path.join(__dirname,target_dir, ".git", "objects"), { recursive: true });
+    fs.mkdirSync(path.join(__dirname,target_dir, ".git", "refs"), { recursive: true });
+  
+    fs.writeFileSync(
+      path.join(__dirname,target_dir, ".git", "HEAD"),
+      "ref: refs/heads/main\n"
+    );
+  
+    repo_path= path.join(__dirname,target_dir);
+  
+    //Network Request to Fetch Repository Information
+  
+    await https.get(`${repo_url}/info/refs?service=git-upload-pack`,(resp)=>{
+      let content='';
+  
+      resp.on('data',(chunk)=>{
+        content+=chunk;
+        // console.log(chunk)
+      });
+  
+     
+  
+  
+      
+  
+      resp.on('end',()=>{
+        console.log(content);
+        const respAsArr= content.split('\n');
+        let packHash;
+        console.log(respAsArr)
+  
+        for(let c of respAsArr){
+          if(c.includes('refs/heads/main') && c.includes('003')){
+            const tup= c.split(" ");
+            packHash= tup[0].slice(4); //Remove leading 003f 
+          }
+        }
+  
+        console.log(packHash)
+  
+       // Perform POST request to git-upload-pack endpoint
+       fetchPack(repo_url, packHash, repo_path);
+  
+        
+  
+  
+        
+      });
+  
+    })
+  
+  
+  }
+  
+  
+  
+ async function fetchPack(repoUrl, packHash, repoDir) {
+    // Construct POST request options
+    const postData = Buffer.from(`0032want ${packHash}\n00000009done\n`, 'utf-8');
+    const options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-git-upload-pack-request'
+        }
+    };
+  
+    // Perform POST request to git-upload-pack endpoint
+    const req = await https.request(`${repoUrl}/git-upload-pack`, options, (res) => {
+        let packData = [];
+  
+        res.on('data', (chunk) => {
+            packData.push(chunk);
+        });
+  
+        res.on('end', () => {
+            // Parse pack data and save objects to local repository
+            console.log(packData)
+            const packFileData= Buffer.concat(packData)
+            saveObjects(packFileData, repoDir);
+        });
+  
+        res.on('error', (error) => {
+            console.error('Error fetching pack data:', error);
+        });
+    });
+  
+    req.on('error', (error) => {
+        console.error('Error connecting to git-upload-pack endpoint:', error);
+    });
+  
+    // Write POST data to request
+    req.write(postData);
+    req.end();
+  }
+  
+  
+  function saveObjects(packRespData,repoDir){
+    //Read the Packfile header of 12 Byte
+  
+    // console.log(packRespData.slice(0, 12).toString('ascii'))
+    const ddd= packRespData.slice(0,packRespData.length-20)
+    checksum_calc= crypto.createHash("sha1").update(ddd).digest('hex');
+    checksum= packRespData.slice(packRespData.length-20).toString('hex');
+    console.log(checksum_calc)
+    console.log(checksum)
+    if (checksum_calc !== checksum) {
+      throw new Error('Checksum does not match');
+  }
+  
+    
+  
+  
+  
+    if (packRespData.slice(8, 12).toString('ascii') !== 'PACK') {
+      throw new Error('Invalid packfile format');
+  }
+  
+    const magic= packRespData.toString('utf-8',8,12);
+    
+    // Read the version and number of objects from the packfile header
+    const versionBuffer = packRespData.slice(12, 16); // Slice from the 12th byte to the 15th byte (4 bytes)
+    const version = versionBuffer.readUInt32BE(0); // Interpret the bytes as a 32-bit unsigned integer// Read 4 bytes as big endian unsigned integer
+    const temp= packRespData.slice(16,20);
+    
+    const numObjects = temp.readUInt32BE(0); // Read next 4 bytes as big endian unsigned integer
+  
+    console.log(`Packfile: ${magic}, Version: ${version}, Number of Objects: ${numObjects}`);
+  
+    let offset= 20;
+  
+    for(let i=0;i<numObjects;i++){
+  
+      const { object, nextOffset } = readObject(packRespData, offset);
+      console.log(`Object ${i + 1}: Type = ${object.type}, Size = ${object.data_size}`);
+      offset = nextOffset; // Move to the start of the next object
+    }
+  
+  }
+  
+  function readObject(buffer,start){
+    const typeAndSize = decodeVarInt(buffer, start);
+    
+  
+    // First we will shift right by 4 bits
+    const type = typeAndSize.type  // Top three bits of the first byte
+    const size = typeAndSize.value; // Remaining bits are size
+  
+    console.log(type,size,typeAndSize.bytesUsed)
+  
+    if (start + typeAndSize.bytesUsed + size >buffer.length) {
+      console.error("Calculated size exceeds buffer length.");
+  }
+  
+    // const compressedData = buffer.slice(start + typeAndSize.bytesUsed, start + typeAndSize.bytesUsed + size);
+    // console.log(compressedData)
+      
+    // try {
+      const decompressedData = zlib.inflateSync(buffer);
+      decompressedData= decompressedData.slice(start + typeAndSize.bytesUsed, start + typeAndSize.bytesUsed + size);
+      // console.log("hii")
+      
+      // Further processing...
+  // } catch (err) {
+  //     console.error("Decompression failed:", err);
+  //     // Handle error or cleanup
+  // }
+  
+    return {
+        object: {
+            type: type,
+            data_size: decompressedData.length,
+        },
+        nextOffset: start + typeAndSize.bytesUsed + size
+    };
+  
+  }
+  
+  
+  
+  
+  //To decode a variable-length integer from a byte stream 
+  
+  //variable-length integers pack their least significant bits first, each subsequent byte contains increasingly significant bits
+  
+  function decodeVarInt (buffer,offset){
+    let value = 0;    // This will accumulate the integer value.
+    let shift = 0;    // This tracks the "shift" for bits as we move through each byte.
+    let bytesUsed = 0;  // This counts the number of bytes used to store the integer.
+    let byte;        // This will store the current byte's value.
+    let first=0;
+  
+    do {
+        byte = buffer[offset + bytesUsed];  // Read the current byte at the position.
+  
+        //7 bits are part of the integer's value, while the 8th bit is only a flag for continuation.
+  
+        if(first===0){
+          value |=(byte & 0b00001111) <<shift;
+         
+          
+          first=1;
+        }
+        else{
+          value |= (byte & 0x7f) << shift;   // Mask off the top bit and shift the remaining bits into position, then OR it with the accumulated value. 0x7f or 01111111 is 127
+          
+        }
+  
+       
+        shift += 7;  // Increase the shift for the next byte's bits.
+        bytesUsed++; // Increment the count of bytes used.
+      } while (byte >=128); // Continue if the continuation bit is set (byte >= 128).
+      const type = (buffer[offset] >> 4) & 0b0111;  // Extract type from the first byte
+      
+  
+    return {
+      value: value,  //Value: decoded integer
+      type: type,
+      bytesUsed: bytesUsed // No. of bytes used to decode the integer
+      };
+  
+  }
+
+  module.exports= clone_repo;
+  
+  
