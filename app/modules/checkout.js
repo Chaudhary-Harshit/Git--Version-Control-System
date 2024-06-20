@@ -2,8 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const { readGitObject, parseTreeEntries } = require("./utils");
 
-
-
 // function listFilesAndFolders(dir, allFiles = []) {
 //   const files = fs.readdirSync(dir);
 
@@ -22,9 +20,9 @@ const { readGitObject, parseTreeEntries } = require("./utils");
 // }
 
 function checkout(hash, gitDir, basePath = "") {
-//   const allFilesAndFolders = listFilesAndFolders(gitDir);
+  //   const allFilesAndFolders = listFilesAndFolders(gitDir);
 
-// console.log('All files and folders:', allFilesAndFolders);
+  // console.log('All files and folders:', allFilesAndFolders);
 
   const { type, length, content } = readGitObject(hash, gitDir);
   if (type !== "tree") {
@@ -33,11 +31,11 @@ function checkout(hash, gitDir, basePath = "") {
   let entries = parseTreeEntries(content);
   // console.log(entries)
   for (let entry of entries) {
-    if(entry.name=== ".git") continue;
+    if (entry.name === ".git") continue;
     if (entry.mode === "100644") {
       // console.log(path.join(basePath, entry.name), entry.hash);
       const blob = readGitObject(entry.hash, gitDir);
-     
+
       fs.writeFileSync(path.join(basePath, entry.name), blob.content);
     } else if (entry.mode === "40000") {
       // console.log("FOUND FOLDER", entry.hash, entry.name);

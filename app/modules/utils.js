@@ -156,7 +156,7 @@ function readGitObject(sha, basePath = "") {
     ".git",
     "objects",
     sha.slice(0, 2),
-    sha.slice(2),
+    sha.slice(2)
   );
 
   const data = fs.readFileSync(blobPath);
@@ -183,64 +183,60 @@ function readGitObject(sha, basePath = "") {
 //     console.log("\n");
 //   }
 
-function parseGitObject(object){
-    if(object.type!="delta"){
-        let parsed= PARSE_FUNCTIONS[object.type](object.content);
+function parseGitObject(object) {
+  if (object.type != "delta") {
+    let parsed = PARSE_FUNCTIONS[object.type](object.content);
 
-        return{
-            hash: parsed.hash,
-            type: object.type,
-            parsed:parsed.content,
-            raw: object.content,
-        };
-    }
-    else {
-        throw new Error("Refer to resovle delta function");
-      }
+    return {
+      hash: parsed.hash,
+      type: object.type,
+      parsed: parsed.content,
+      raw: object.content,
+    };
+  } else {
+    throw new Error("Refer to resovle delta function");
+  }
 }
 
 function parseGitObjects(objects) {
   // objectLength = Object.keys(objects).length;
   // console.log("Here again in parseGitObjects fucntion gitobjects are ",objectLength);
-    let gitObjects = {};
-    let i=0;
-    let k=0;
-    objects.forEach((obj) => {
-      // console.log(obj);
-     
-      if (obj.type !== "delta") {
-        i++;
-        let parsed = PARSE_FUNCTIONS[obj.type](obj.content);
-        
-        gitObjects[parsed.hash] = {
-          hash: parsed.hash,
-          type: obj.type,
-          parsed: parsed.content,
-          raw: obj.content,
-        };
-      }
-      else{
-        k++;
-        // console.log(obj.type);
+  let gitObjects = {};
+  let i = 0;
+  let k = 0;
+  objects.forEach((obj) => {
+    // console.log(obj);
 
-      }
-    });
+    if (obj.type !== "delta") {
+      i++;
+      let parsed = PARSE_FUNCTIONS[obj.type](obj.content);
 
-    // console.log("harshit ", i, k);
-    return gitObjects;
-  }
+      gitObjects[parsed.hash] = {
+        hash: parsed.hash,
+        type: obj.type,
+        parsed: parsed.content,
+        raw: obj.content,
+      };
+    } else {
+      k++;
+      // console.log(obj.type);
+    }
+  });
 
-  module.exports = {
-    resolveGitObjectPath,
-    createCommitContent,
-    createBlobContent,
-    createTreeContent,
-    parseTreeEntries,
-    parseGitObjects,
-    parseGitObject,
-    writeGitObject,
-    readGitObject,
-    formatBlob,
-    sha1,
-  };
+  // console.log("harshit ", i, k);
+  return gitObjects;
+}
 
+module.exports = {
+  resolveGitObjectPath,
+  createCommitContent,
+  createBlobContent,
+  createTreeContent,
+  parseTreeEntries,
+  parseGitObjects,
+  parseGitObject,
+  writeGitObject,
+  readGitObject,
+  formatBlob,
+  sha1,
+};

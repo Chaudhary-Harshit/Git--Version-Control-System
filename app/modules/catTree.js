@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("node:zlib");
 
-
 function readTree(hash) {
   const dirName = hash.slice(0, 2);
   const fileName = hash.slice(2);
@@ -26,7 +25,6 @@ function readTree(hash) {
   dataStr = dataStr.slice(nullByteIndex + 1);
 
   while (dataStr.length > 0) {
-
     // Extract mode
 
     const spaceIndex = dataStr.indexOf(" ");

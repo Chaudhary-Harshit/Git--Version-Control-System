@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-function createGitDirectory(basePath = "",branch) {
+function createGitDirectory(basePath = "", branch) {
   fs.mkdirSync(path.join(process.cwd(), basePath, ".git"), { recursive: true });
   fs.mkdirSync(path.join(process.cwd(), basePath, ".git", "objects"), {
     recursive: true,
@@ -12,9 +12,9 @@ function createGitDirectory(basePath = "",branch) {
 
   fs.writeFileSync(
     path.join(process.cwd(), basePath, ".git", "HEAD"),
-    `ref: refs/heads/${branch}\n`,
+    `ref: refs/heads/${branch}\n`
   );
   //console.log('Initialized git directory')
 }
 
-module.exports = {createGitDirectory};
+module.exports = { createGitDirectory };
